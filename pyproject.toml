@@ -23,7 +23,8 @@ dependencies = [
     "PyCryptodome",
     "prompt_toolkit>=3",
     "python-telegram-bot",
-    "termcolor"
+    "termcolor",
+    "InquirerPy"
 ]
 dynamic = ["version"]
 [tool.setuptools_scm]

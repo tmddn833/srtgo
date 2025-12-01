@@ -19,3 +19,20 @@
 
 ## Acknowledgments
 - This project includes code from [SRT](https://github.com/ryanking13/SRT) by ryanking13, licensed under the MIT License, and [korail2](https://github.com/carpedm20/korail2) by carpedm20, licensed under the BSD License.
+
+
+## Usage
+```
+# create conda env for srtgo
+conda create -n srtgo python==3.10
+conda activate srtgo
+
+# install
+git clone https://github.com/tmddn833/srtgo.git
+cd srtgo
+python3 -m pip install -e .
+
+# start
+conda activate srtgo
+srtgo
+```

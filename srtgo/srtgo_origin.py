@@ -12,63 +12,34 @@ from typing import Awaitable, Callable, List, Optional, Tuple, Union
 import asyncio
 import click
 import inquirer
-from InquirerPy import inquirer as inquirer2
-from InquirerPy.base.control import Choice
-
 import keyring
 import telegram
-import time as Time
+import time
 import re
 
-try:
-    from .ktx import (
-        Korail,
-        KorailError,
-        ReserveOption,
-        TrainType,
-        AdultPassenger,
-        ChildPassenger,
-        SeniorPassenger,
-        Disability1To3Passenger,
-        Disability4To6Passenger,
-    ) 
-except ImportError:
-    from ktx import (
-        Korail,
-        KorailError,
-        ReserveOption,
-        TrainType,
-        AdultPassenger,
-        ChildPassenger,
-        SeniorPassenger,
-        Disability1To3Passenger,
-        Disability4To6Passenger,
-    )
+from .ktx import (
+    Korail,
+    KorailError,
+    ReserveOption,
+    TrainType,
+    AdultPassenger,
+    ChildPassenger,
+    SeniorPassenger,
+    Disability1To3Passenger,
+    Disability4To6Passenger,
+)
 
-try:
-    from .srt import (
-        SRT,
-        SRTError,
-        SRTNetFunnelError,
-        SeatType,
-        Adult,
-        Child,
-        Senior,
-        Disability1To3,
-        Disability4To6,
-    )
-except ImportError:
-    from srt import (
-        SRT,
-        SRTError,
-        SRTNetFunnelError,
-        SeatType,
-        Adult,
-        Child,
-        Senior,
-        Disability1To3,
-        Disability4To6,
-    )
+from .srt import (
+    SRT,
+    SRTError,
+    SRTNetFunnelError,
+    SeatType,
+    Adult,
+    Child,
+    Senior,
+    Disability1To3,
+    Disability4To6,
+)
 
 
 STATIONS = {
@@ -156,15 +127,6 @@ WAITING_BAR = ["|", "/", "-", "\\"]
 RailType = Union[str, None]
 ChoiceType = Union[int, None]
 
-def tuple_choice_to_dict(choice: Tuple[str, str]) -> tuple:
-    return Choice(name = choice[0], value= choice[1])
-
-def tuple_list_to_choice_list(choices: List[Tuple[str, str]]) -> List[dict]:
-    return [tuple_choice_to_dict(choice) for choice in choices]
-
-def list_to_choice_list(choices: List[str]) -> List[dict]:
-    return [Choice(name = choice, value= choice) for choice in choices]
-
 
 @click.command()
 @click.option("--debug", is_flag=True, help="Debug mode")
@@ -182,9 +144,9 @@ def srtgo(debug=False):
     ]
 
     RAIL_CHOICES = [
-        ("SRT","SRT"),
-        ("KTX","KTX"),
-        ("취소",-1),
+        (colored("SRT", "red"), "SRT"),
+        (colored("KTX", "cyan"), "KTX"),
+        ("취소", -1),
     ]
 
     ACTIONS = {
@@ -199,31 +161,18 @@ def srtgo(debug=False):
     }
 
     while True:
-        choice = inquirer2.select(
-            message="메뉴 선택 (↕(w,s):이동, Enter: 선택)", 
-            choices=tuple_list_to_choice_list(MENU_CHOICES),
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-        ).execute()
+        choice = inquirer.list_input(
+            message="메뉴 선택 (↕:이동, Enter: 선택)", choices=MENU_CHOICES
+        )
 
         if choice == -1:
             break
 
         if choice in {1, 2, 3, 6, 7}:
-            rail_type = inquirer2.select(
-                message="열차 선택 (↕(w,s):이동, Enter: 선택, C: 취소)",
-                choices=tuple_list_to_choice_list(RAIL_CHOICES),
-                keybindings={
-                    "up": [{"key": "w"}],       # w로 위
-                    "down": [{"key": "s"}],     # s로 아래
-                    "answer": [{"key": "enter"}],
-                    "interrupt": [{"key": "c"}],
-                },
-            ).execute()
+            rail_type = inquirer.list_input(
+                message="열차 선택 (↕:이동, Enter: 선택, Ctrl-C: 취소)",
+                choices=RAIL_CHOICES,
+            )
             if rail_type in {-1, None}:
                 continue
         else:
@@ -237,27 +186,27 @@ def srtgo(debug=False):
 def set_station(rail_type: RailType) -> bool:
     stations, default_station_key = get_station(rail_type)
 
-    # Use InquirerPy checkbox; returns selected list directly
-    try:
-        selected = inquirer2.checkbox(
-            message="역 선택 (↕(w,s):이동, Space: 선택, Enter: 완료, Ctrl-A: 전체선택, Ctrl-R: 선택해제, C: 취소)",
-            choices=list_to_choice_list(stations),
-            default=default_station_key,
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-        ).execute()
-    except Exception:
+    if not (
+        station_info := inquirer.prompt(
+            [
+                inquirer.Checkbox(
+                    "stations",
+                    message="역 선택 (↕:이동, Space: 선택, Enter: 완료, Ctrl-A: 전체선택, Ctrl-R: 선택해제, Ctrl-C: 취소)",
+                    choices=stations,
+                    default=default_station_key,
+                )
+            ]
+        )
+    ):
         return False
 
-    if not selected:
+    if not (selected := station_info["stations"]):
         print("선택된 역이 없습니다.")
         return False
 
-    keyring.set_password(rail_type, "station", (selected_stations := ",".join(selected)))
+    keyring.set_password(
+        rail_type, "station", (selected_stations := ",".join(selected))
+    )
     print(f"선택된 역: {selected_stations}")
     return True
 
@@ -310,28 +259,27 @@ def get_station(rail_type: RailType) -> Tuple[List[str], List[int]]:
 
 def set_options():
     default_options = get_options()
-    try:
-        options_selected = inquirer2.checkbox(
-            message="예매 옵션 선택 (↕(w,s):이동, Space: 선택, Enter: 완료, Ctrl-A: 전체선택, Ctrl-R: 선택해제, C: 취소)",
-            choices=tuple_list_to_choice_list([
-                ("어린이", "child"),
-                ("경로우대", "senior"),
-                ("중증장애인", "disability1to3"),
-                ("경증장애인", "disability4to6"),
-                ("KTX만", "ktx"),
-            ]),
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-            default=default_options,
-        ).execute()
-    except Exception:
+    choices = inquirer.prompt(
+        [
+            inquirer.Checkbox(
+                "options",
+                message="예매 옵션 선택 (Space: 선택, Enter: 완료, Ctrl-A: 전체선택, Ctrl-R: 선택해제, Ctrl-C: 취소)",
+                choices=[
+                    ("어린이", "child"),
+                    ("경로우대", "senior"),
+                    ("중증장애인", "disability1to3"),
+                    ("경증장애인", "disability4to6"),
+                    ("KTX만", "ktx"),
+                ],
+                default=default_options,
+            )
+        ]
+    )
+
+    if choices is None:
         return
 
-    options = options_selected or []
+    options = choices.get("options", [])
     keyring.set_password("SRT", "options", ",".join(options))
 
 
@@ -487,9 +435,7 @@ def login(rail_type="SRT", debug=False):
         keyring.get_password(rail_type, "id") is None
         or keyring.get_password(rail_type, "pass") is None
     ):
-        is_set = set_login(rail_type)
-        if not is_set:
-            raise SRTError("로그인 정보가 설정되지 않았습니다")
+        set_login(rail_type)
 
     user_id = keyring.get_password(rail_type, "id")
     password = keyring.get_password(rail_type, "pass")
@@ -550,71 +496,40 @@ def reserve(rail_type="SRT", debug=False):
     ]
     time_choices = [(f"{h:02d}", f"{h:02d}0000") for h in range(24)]
 
-    # Ask for reservation info using InquirerPy select/text prompts
-    try:
-        departure = inquirer2.select(
-            message="출발역 선택 (↕(w,s):이동, Enter: 선택, C: 취소)",
+    # Build inquirer questions
+    q_info = [
+        inquirer.List(
+            "departure",
+            message="출발역 선택 (↕:이동, Enter: 선택, Ctrl-C: 취소)",
             choices=station_key,
             default=defaults["departure"],
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-        ).execute()
-
-        arrival = inquirer2.select(
-            message="도착역 선택 (↕(w,s):이동, Enter: 선택, C: 취소)",
+        ),
+        inquirer.List(
+            "arrival",
+            message="도착역 선택 (↕:이동, Enter: 선택, Ctrl-C: 취소)",
             choices=station_key,
             default=defaults["arrival"],
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-        ).execute()
-
-        date = inquirer2.select(
-            message="출발 날짜 선택 (↕(w,s):이동, Enter: 선택, C: 취소)",
-            choices=tuple_list_to_choice_list(date_choices),
+        ),
+        inquirer.List(
+            "date",
+            message="출발 날짜 선택 (↕:이동, Enter: 선택, Ctrl-C: 취소)",
+            choices=date_choices,
             default=defaults["date"],
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-        ).execute()
-
-        time = inquirer2.select(
-            message="출발 시각 선택 (↕(w,s):이동, Enter: 선택, C: 취소)",
-            choices=tuple_list_to_choice_list(time_choices),
+        ),
+        inquirer.List(
+            "time",
+            message="출발 시각 선택 (↕:이동, Enter: 선택, Ctrl-C: 취소)",
+            choices=time_choices,
             default=defaults["time"],
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-        ).execute()
-
-        adult = inquirer2.select(
-            message="성인 승객수 (↕(w,s):이동, Enter: 선택, C: 취소)",
-            choices=list(range(10)),
+        ),
+        inquirer.List(
+            "adult",
+            message="성인 승객수 (↕:이동, Enter: 선택, Ctrl-C: 취소)",
+            choices=range(10),
             default=defaults["adult"],
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-        ).execute()
-    except Exception as e:
-        print(e)
-        print(colored("예매 정보 입력 중 취소되었습니다", "green", "on_red") + "\n")
-        return
+        ),
+    ]
+
     passenger_types = {
         "child": "어린이",
         "senior": "경로우대",
@@ -638,35 +553,25 @@ def reserve(rail_type="SRT", debug=False):
         passenger_classes["disability4to6"]: "4~6급 장애인",
     }
 
-    # Add passenger-specific selections if requested
-    info = {
-        "departure": departure,
-        "arrival": arrival,
-        "date": date,
-        "time": time,
-        "adult": adult,
-    }
-
+    # Add passenger type questions if enabled in options
     for key, label in passenger_types.items():
         if key in options:
-            try:
-                val = inquirer2.select(
-                    message=f"{label} 승객수 (↕(w,s):이동, Enter: 선택, c: 취소)",
-                    choices=list(range(10)),
-                    default=defaults.get(key, 0),
-                    keybindings={
-                        "up": [{"key": "w"}],       # w로 위
-                        "down": [{"key": "s"}],     # s로 아래
-                        "answer": [{"key": "enter"}],
-                        "interrupt": [{"key": "c"}],
-                    },
-                ).execute()
-            except Exception:
-                print(colored("예매 정보 입력 중 취소되었습니다", "green", "on_red") + "\n")
-                return
-            info[key] = val
+            q_info.append(
+                inquirer.List(
+                    key,
+                    message=f"{label} 승객수 (↕:이동, Enter: 선택, Ctrl-C: 취소)",
+                    choices=range(10),
+                    default=defaults[key],
+                )
+            )
+
+    info = inquirer.prompt(q_info)
 
     # Validate input info
+    if not info:
+        print(colored("예매 정보 입력 중 취소되었습니다", "green", "on_red") + "\n")
+        return
+
     if info["departure"] == info["arrival"]:
         print(colored("출발역과 도착역이 같습니다", "green", "on_red") + "\n")
         return
@@ -724,65 +629,52 @@ def reserve(rail_type="SRT", debug=False):
     def train_decorator(train):
         msg = train.__repr__()
         return (
-            msg.replace("예약가능", "가능")
-            .replace("가능", "가능")
-            .replace("신청하기", "가능")
+            msg.replace("예약가능", colored("가능", "green"))
+            .replace("가능", colored("가능", "green"))
+            .replace("신청하기", colored("가능", "green"))
         )
 
     if not trains:
         print(colored("예약 가능한 열차가 없습니다", "green", "on_red") + "\n")
         return
 
-
     # Get train selection
-    try:
-        selected_trains = inquirer2.checkbox(
-            message="예약할 열차 선택 (↕:이동, Space: 선택, Enter: 완료, Ctrl-A: 전체선택, Ctrl-R: 선택해제, c: 취소)",
-            choices=tuple_list_to_choice_list([(train_decorator(train), i) for i, train in enumerate(trains)]),
+    q_choice = [
+        inquirer.Checkbox(
+            "trains",
+            message="예약할 열차 선택 (↕:이동, Space: 선택, Enter: 완료, Ctrl-A: 전체선택, Ctrl-R: 선택해제, Ctrl-C: 취소)",
+            choices=[(train_decorator(train), i) for i, train in enumerate(trains)],
             default=None,
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            },
-        ).execute()
-    except Exception:
+        ),
+    ]
+
+    choice = inquirer.prompt(q_choice)
+    if choice is None or not choice["trains"]:
         print(colored("선택한 열차가 없습니다!", "green", "on_red") + "\n")
         return
 
-    if not selected_trains:
-        print(colored("선택한 열차가 없습니다!", "green", "on_red") + "\n")
-        return
-
-    n_trains = len(selected_trains)
+    n_trains = len(choice["trains"])
 
     # Get seat type preference
     seat_type = SeatType if is_srt else ReserveOption
-    try:
-        type_choice = inquirer2.select(
+    q_options = [
+        inquirer.List(
+            "type",
             message="선택 유형",
-            choices=tuple_list_to_choice_list([
+            choices=[
                 ("일반실 우선", seat_type.GENERAL_FIRST),
                 ("일반실만", seat_type.GENERAL_ONLY),
                 ("특실 우선", seat_type.SPECIAL_FIRST),
                 ("특실만", seat_type.SPECIAL_ONLY),
-            ]),
-            keybindings={
-                "up": [{"key": "w"}],       # w로 위
-                "down": [{"key": "s"}],     # s로 아래
-                "answer": [{"key": "enter"}],
-                "interrupt": [{"key": "c"}],
-            }
-        ).execute()
+            ],
+        ),
+        inquirer.Confirm("pay", message="예매 시 카드 결제", default=False),
+    ]
 
-        pay_choice = inquirer.confirm(message="예매 시 카드 결제", default=False)
-    except Exception as e:
-        print(e)
+    options = inquirer.prompt(q_options)
+    if options is None:
         print(colored("예매 정보 입력 중 취소되었습니다", "green", "on_red") + "\n")
         return
-
-    options = {"type": type_choice, "pay": pay_choice}
 
     # Reserve function
     def _reserve(train):
@@ -804,11 +696,11 @@ def reserve(rail_type="SRT", debug=False):
 
     # Reservation loop
     i_try = 0
-    start_time = Time.time()
+    start_time = time.time()
     while True:
         try:
             i_try += 1
-            elapsed_time = Time.time() - start_time
+            elapsed_time = time.time() - start_time
             hours, remainder = divmod(int(elapsed_time), 3600)
             minutes, seconds = divmod(remainder, 60)
             print(
@@ -818,7 +710,7 @@ def reserve(rail_type="SRT", debug=False):
             )
 
             trains = rail.search_train(**params)
-            for i in selected_trains:
+            for i in choice["trains"]:
                 if _is_seat_available(trains[i], options["type"], rail_type):
                     _reserve(trains[i])
                     return
@@ -891,7 +783,7 @@ def reserve(rail_type="SRT", debug=False):
 
 
 def _sleep():
-    Time.sleep(
+    time.sleep(
         gammavariate(RESERVE_INTERVAL_SHAPE, RESERVE_INTERVAL_SCALE)
         + RESERVE_INTERVAL_MIN
     )
@@ -955,19 +847,7 @@ def check_reservation(rail_type="SRT", debug=False):
             (str(reservation), i) for i, reservation in enumerate(all_reservations)
         ] + [("텔레그램으로 예매 정보 전송", -2), ("돌아가기", -1)]
 
-        try:
-            choice = inquirer2.select(message="예약 취소 (Enter: 결정)", 
-                                      choices=tuple_list_to_choice_list(choices), 
-                                      keybindings=
-                                        {
-                                            "up": [{"key": "w"}],       # w로 위
-                                            "down": [{"key": "s"}],     # s로 아래
-                                            "answer": [{"key": "enter"}],
-                                            "interrupt": [{"key": "c"}],
-                                        },
-                                      ).execute()
-        except Exception:
-            return
+        choice = inquirer.list_input(message="예약 취소 (Enter: 결정)", choices=choices)
 
         # No choice or go back
         if choice in (None, -1):
@@ -993,19 +873,10 @@ def check_reservation(rail_type="SRT", debug=False):
             not all_reservations[choice].is_ticket
             and not all_reservations[choice].is_waiting
         ):
-            try:
-                answer = inquirer2.select(
-                    message=f"결재 대기 승차권: {all_reservations[choice]}",
-                    choices=tuple_list_to_choice_list([("결제하기", 1), ("취소하기", 2)]),
-                    keybindings={
-                        "up": [{"key": "w"}],       # w로 위
-                        "down": [{"key": "s"}],     # s로 아래
-                        "answer": [{"key": "enter"}],
-                        "interrupt": [{"key": "c"}],
-                    },
-                ).execute()
-            except Exception:
-                return
+            answer = inquirer.list_input(
+                message=f"결재 대기 승차권: {all_reservations[choice]}",
+                choices=[("결제하기", 1), ("취소하기", 2)],
+            )
 
             if answer == 1:
                 if pay_card(rail, all_reservations[choice]):
