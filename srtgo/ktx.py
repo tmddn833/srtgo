@@ -21,6 +21,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from datetime import datetime, timedelta
 from functools import reduce
+from srtgo.dynapath import generate_token as _dynapath_generate_token
 
 
 # Constants
@@ -515,7 +516,7 @@ class Korail:
             self._session = requests.session()
         self._session.headers.update(DEFAULT_HEADERS)
         self._device = "AD"
-        self._version = "240531001"
+        self._version = "250601002"
         self._key = "korail1234567890"
         self._idx = None
         self.korail_id = korail_id
@@ -575,6 +576,7 @@ class Korail:
             "idx": self._idx,
         }
 
+        self._session.headers["x-dynapath-m-token"] = _dynapath_generate_token()
         r = self._session.post(API_ENDPOINTS["login"], data=data)
         self._log(r.text)
         j = json.loads(r.text)
@@ -669,6 +671,7 @@ class Korail:
             "mbCrdNo": self.membership_number,
         }
 
+        self._session.headers["x-dynapath-m-token"] = _dynapath_generate_token()
         r = self._session.get(API_ENDPOINTS["search_schedule"], params=data)
         self._log(r.text)
         j = json.loads(r.text)
@@ -757,6 +760,7 @@ class Korail:
         for i, psg in enumerate(passengers, 1):
             data.update(psg.get_dict(i))
 
+        self._session.headers["x-dynapath-m-token"] = _dynapath_generate_token()
         r = self._session.get(API_ENDPOINTS["reserve"], params=data)
         self._log(r.text)
         j = json.loads(r.text)
