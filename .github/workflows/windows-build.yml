@@ -1,0 +1,52 @@
+name: Build Windows exe
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # setuptools-scm derives the version from git history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pyinstaller
+
+      - name: Build exe
+        run: >
+          pyinstaller --onefile --console --clean --name srtgo
+          --collect-all curl_cffi
+          --copy-metadata readchar
+          --copy-metadata prompt_toolkit
+          --collect-submodules jinxed
+          --hidden-import keyring.backends.Windows
+          launcher.py
+
+      - name: Smoke test
+        run: .\dist\srtgo.exe --help
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: srtgo-windows
+          path: dist/srtgo.exe
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ github.event.release.tag_name }} dist/srtgo.exe --clobber
